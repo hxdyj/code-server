@@ -2,6 +2,7 @@ import { logger } from "@coder/logger"
 import bodyParser from "body-parser"
 import cookieParser from "cookie-parser"
 import * as express from "express"
+import { ErrorRequestHandler } from "express"
 import { promises as fs } from "fs"
 import http from "http"
 import * as path from "path"
@@ -11,13 +12,14 @@ import { plural } from "../../common/util"
 import { AuthType, DefaultedArgs } from "../cli"
 import { rootPath } from "../constants"
 import { Heart } from "../heart"
-import { replaceTemplates } from "../http"
+import { commonTemplateVars } from "../http"
 import { loadPlugins } from "../plugin"
 import * as domainProxy from "../proxy"
 import { getMediaMime, paths } from "../util"
 import { WebsocketRequest } from "../wsRouter"
 import * as health from "./health"
 import * as login from "./login"
+import * as manifest from "./manifest"
 import * as proxy from "./proxy"
 // static is a reserved keyword.
 import * as _static from "./static"
@@ -103,6 +105,8 @@ export const register = async (
   app.use("/vscode", vscode.router)
   wsApp.use("/vscode", vscode.wsRouter.router)
 
+  app.use("/", manifest.router)
+
   app.use("/healthz", health.router)
 
   if (args.auth === AuthType.Password) {
@@ -112,7 +116,8 @@ export const register = async (
   app.use("/proxy", proxy.router)
   wsApp.use("/proxy", proxy.wsRouter.router)
 
-  app.use("/static", _static.router)
+  app.use("/", _static.router)
+
   app.use("/update", update.router)
 
   await loadPlugins(app, args)
@@ -121,21 +126,21 @@ export const register = async (
     throw new HttpError("Not Found", HttpCode.NotFound)
   })
 
-  const errorHandler: express.ErrorRequestHandler = async (err, req, res, next) => {
-    const resourcePath = path.resolve(rootPath, "src/browser/pages/error.html")
-    res.set("Content-Type", getMediaMime(resourcePath))
+  const errorHandler: ErrorRequestHandler = async (err, req, res, next) => {
+    if (err.code === "ENOENT" || err.code === "EISDIR") {
+      err.status = HttpCode.NotFound
+    }
+
+    const status = err.status ?? err.statusCode ?? 500
+
     try {
-      const content = await fs.readFile(resourcePath, "utf8")
-      if (err.code === "ENOENT" || err.code === "EISDIR") {
-        err.status = HttpCode.NotFound
-      }
-      const status = err.status ?? err.statusCode ?? 500
-      res.status(status).send(
-        replaceTemplates(req, content)
-          .replace(/{{ERROR_TITLE}}/g, status)
-          .replace(/{{ERROR_HEADER}}/g, status)
-          .replace(/{{ERROR_BODY}}/g, err.message),
-      )
+      res.status(status).render("error/index", {
+        ...commonTemplateVars(req),
+        HOME_PATH: (typeof req.query.to === "string" && req.query.to) || "/",
+        ERROR_TITLE: status,
+        ERROR_HEADER: status,
+        ERROR_BODY: err.message,
+      })
     } catch (error) {
       next(error)
     }
