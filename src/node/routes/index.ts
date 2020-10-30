@@ -12,7 +12,7 @@ import { AuthType, DefaultedArgs } from "../cli"
 import { rootPath } from "../constants"
 import { Heart } from "../heart"
 import { replaceTemplates } from "../http"
-import { loadPlugins } from "../plugin"
+import { PluginAPI } from "../plugin"
 import * as domainProxy from "../proxy"
 import { getMediaMime, paths } from "../util"
 import * as health from "./health"
@@ -94,7 +94,9 @@ export const register = async (app: Express, server: http.Server, args: Defaulte
   app.use("/update", update.router)
   app.use("/vscode", vscode.router)
 
-  await loadPlugins(app, args)
+  const papi = new PluginAPI(logger, process.env.CS_PLUGIN, process.env.CS_PLUGIN_PATH)
+  await papi.loadPlugins()
+  papi.mount(app)
 
   app.use(() => {
     throw new HttpError("Not Found", HttpCode.NotFound)
