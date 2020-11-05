@@ -12,7 +12,7 @@ import { plural } from "../../common/util"
 import { AuthType, DefaultedArgs } from "../cli"
 import { rootPath } from "../constants"
 import { Heart } from "../heart"
-import { commonTemplateVars } from "../http"
+import { commonTemplateVars, ensureAuthenticated } from "../http"
 import { loadPlugins } from "../plugin"
 import * as domainProxy from "../proxy"
 import { getMediaMime, paths } from "../util"
@@ -117,6 +117,16 @@ export const register = async (
   wsApp.use("/proxy", proxy.wsRouter.router)
 
   app.use("/", _static.router)
+
+  if (args["local-directory"]?.value) {
+    const directoryPath = path.resolve(args["local-directory"].value)
+    logger.info(`Serving files from local directory “${directoryPath}” at “/local”`)
+
+    const localDirectoryRouter = express.Router()
+    _static.createServeDirectoryHandler(localDirectoryRouter, "/local", directoryPath)
+
+    app.use(ensureAuthenticated, localDirectoryRouter)
+  }
 
   app.use("/update", update.router)
 

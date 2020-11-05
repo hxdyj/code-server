@@ -1,8 +1,28 @@
-import { Router, static as createStaticRouteHandler } from "express"
+import { Router, static as serveStatic } from "express"
 import { resolve } from "path"
+import { ServeStaticOptions } from "serve-static"
 import { commit, rootPath } from "../constants"
 
 export const router = Router()
+
+export const createDefaultStaticRouteHandlerOptions = (): ServeStaticOptions => ({
+  cacheControl: commit !== "development",
+})
+
+export const createServeDirectoryHandler = (
+  router: Router,
+  publicRoute: string,
+  directoryPath: string,
+  options: ServeStaticOptions = {},
+): void => {
+  router.use(
+    publicRoute,
+    serveStatic(directoryPath, {
+      ...createDefaultStaticRouteHandlerOptions(),
+      ...options,
+    }),
+  )
+}
 
 const staticPaths: Record<string, string> = {
   "/static": "dist",
@@ -10,11 +30,5 @@ const staticPaths: Record<string, string> = {
 }
 
 for (const [publicRoute, sourcePath] of Object.entries(staticPaths)) {
-  router.use(
-    publicRoute,
-    createStaticRouteHandler(resolve(rootPath, sourcePath), {
-      index: false,
-      cacheControl: commit !== "development",
-    }),
-  )
+  createServeDirectoryHandler(router, publicRoute, resolve(rootPath, sourcePath), { index: false })
 }

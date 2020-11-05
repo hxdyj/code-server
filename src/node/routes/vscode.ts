@@ -1,6 +1,6 @@
 import { field, logger } from "@coder/logger"
 import * as crypto from "crypto"
-import { RequestHandler, Router, static as createStaticRouteHandler } from "express"
+import { RequestHandler, Router } from "express"
 import { promises as fs } from "fs"
 import * as path from "path"
 import { resolve } from "path"
@@ -15,6 +15,7 @@ import { authenticated, commonTemplateVars, ensureAuthenticated, redirect } from
 import { getMediaMime, pathToFsPath } from "../util"
 import { VscodeProvider } from "../vscode"
 import { Router as WsRouter } from "../wsRouter"
+import { createServeDirectoryHandler } from "./static"
 
 export const router = Router()
 
@@ -103,13 +104,8 @@ wsRouter.ws("/", ensureAuthenticated, async (req) => {
   )
   await vscode.sendWebsocket(req.ws, req.query)
 })
-router.use(
-  "/lib",
-  createStaticRouteHandler(resolve(rootPath, "lib"), {
-    index: false,
-    cacheControl: commit !== "development",
-  }),
-)
+
+createServeDirectoryHandler(router, "/lib", resolve(rootPath, "lib"))
 
 interface TarHandlerQueryParams extends ParsedQs {
   filePath?: string | string[]
