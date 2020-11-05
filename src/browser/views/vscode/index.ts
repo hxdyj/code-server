@@ -77,7 +77,7 @@ const initializeCodeServerEditor = () => {
 
   const amdLoaderConfig: CodeServerAmdLoaderConfigurationOptions = {
     // Without the full URL VS Code will try to load file://.
-    baseUrl: `${window.location.origin}${options.base}/static/lib/vscode/out`,
+    baseUrl: `${window.location.origin}${options.base}/vscode/lib/vscode/out`,
     recordStats: true,
     paths: {
       "vscode-textmate": `../node_modules/vscode-textmate/release/main`,

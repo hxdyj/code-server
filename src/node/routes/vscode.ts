@@ -1,9 +1,16 @@
+import { field, logger } from "@coder/logger"
 import * as crypto from "crypto"
-import { Router } from "express"
+import { RequestHandler, Router, static as createStaticRouteHandler } from "express"
 import { promises as fs } from "fs"
 import * as path from "path"
+import { resolve } from "path"
+import { ParsedQs } from "qs"
+import { Readable } from "stream"
+import * as tarFs from "tar-fs"
+import * as zlib from "zlib"
 import { WorkbenchOptions } from "../../../lib/vscode/src/vs/server/ipc"
-import { commit, version } from "../constants"
+import { HttpCode, HttpError } from "../../common/http"
+import { commit, rootPath, version } from "../constants"
 import { authenticated, commonTemplateVars, ensureAuthenticated, redirect } from "../http"
 import { getMediaMime, pathToFsPath } from "../util"
 import { VscodeProvider } from "../vscode"
@@ -96,3 +103,53 @@ wsRouter.ws("/", ensureAuthenticated, async (req) => {
   )
   await vscode.sendWebsocket(req.ws, req.query)
 })
+router.use(
+  "/lib",
+  createStaticRouteHandler(resolve(rootPath, "lib"), {
+    index: false,
+    cacheControl: commit !== "development",
+  }),
+)
+
+interface TarHandlerQueryParams extends ParsedQs {
+  filePath?: string | string[]
+}
+
+/**
+ * Packs and serves requested file with tar.
+ * This is commonly used to fetch an extension on the client.
+ *
+ * @remark See lib/vscode/src/vs/server/browser/mainThreadNodeProxy.ts#L35
+ */
+const tarHandler: RequestHandler<any, Buffer, null, TarHandlerQueryParams> = (req, res) => {
+  const filePath = Array.isArray(req.query.filePath) ? req.query.filePath[0] : req.query.filePath
+
+  if (!filePath) {
+    throw new HttpError("Missing 'filePath' query param", HttpCode.BadRequest)
+  }
+
+  const resourcePath = resolve(filePath)
+
+  let stream: Readable = tarFs.pack(pathToFsPath(filePath))
+
+  if (req.headers["accept-encoding"] && req.headers["accept-encoding"].includes("gzip")) {
+    logger.debug("gzipping tar", field("path", resourcePath))
+
+    const compress = zlib.createGzip()
+
+    stream.pipe(compress)
+    stream.on("error", (error) => compress.destroy(error))
+    stream.on("close", () => compress.end())
+
+    stream = compress
+
+    res.header("content-encoding", "gzip")
+  }
+
+  res.set("Content-Type", "application/x-tar")
+  stream.on("close", () => res.end())
+
+  return stream.pipe(res)
+}
+
+router.get("/extension/tar", tarHandler)

@@ -132,6 +132,7 @@ export const register = async (
     }
 
     const status = err.status ?? err.statusCode ?? 500
+    const message = err.message || "An unknown server error occured"
 
     try {
       res.status(status).render("error/index", {
@@ -139,7 +140,7 @@ export const register = async (
         HOME_PATH: (typeof req.query.to === "string" && req.query.to) || "/",
         ERROR_TITLE: status,
         ERROR_HEADER: status,
-        ERROR_BODY: err.message,
+        ERROR_BODY: message,
       })
     } catch (error) {
       next(error)

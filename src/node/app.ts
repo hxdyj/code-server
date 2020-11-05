@@ -8,7 +8,7 @@ import * as httpolyglot from "httpolyglot"
 import { resolve } from "path"
 import { normalize } from "../common/util"
 import { DefaultedArgs } from "./cli"
-import { rootPath } from "./constants"
+import { commit, rootPath } from "./constants"
 import { handleUpgrade } from "./wsRouter"
 
 /**
@@ -24,7 +24,7 @@ export const createApp = async (args: DefaultedArgs): Promise<[Express, Express,
     exphbs({
       defaultLayout: "",
       helpers: {
-        prod: () => prod,
+        prod: () => commit !== "development",
         assetPath: (base: string, path: string) => normalize(base + path),
         /**
          * Converts to JSON string and encodes entities for use in HTML.
